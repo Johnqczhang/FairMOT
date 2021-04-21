@@ -1,1 +1,6 @@
 .idea
+# compilation
+*.pyc
+__pycache__
+
+*.pth
