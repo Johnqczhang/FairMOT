@@ -114,10 +114,13 @@ class LoadVideo:  # for inference
         # Read image
         res, img0 = self.cap.read()  # BGR
         assert img0 is not None, 'Failed to load frame {:d}'.format(self.count)
+        assert img0.shape[0] == self.h and img0.shape[1] == self.w, "not 1080p frame"
         img0 = cv2.resize(img0, (self.w, self.h))
 
         # Padded resize
-        img, _, _, _ = letterbox(img0, height=self.height, width=self.width)
+        img, ratio, padw, padh = letterbox(img0, height=self.height, width=self.width)
+        self.ratio = ratio
+        self.pads = [padw, padh]
 
         # Normalize RGB
         img = img[:, :, ::-1].transpose(2, 0, 1)
@@ -130,6 +133,23 @@ class LoadVideo:  # for inference
     def __len__(self):
         return self.vn  # number of files
 
+    def get_cur_frame_gt_boxes(self, frame_id):
+        gt_boxes = self.gt_boxes[frame_id]
+        if len(gt_boxes) == 0:
+            return []
+
+        gt_boxes = np.array(
+            gt_boxes, dtype=np.float32
+        )[:, :4]  # shape: (num_boxes, 4), fmt: x1y1wh
+        gt_boxes[:, 2:4] += gt_boxes[:, 0:2]  # fmt: x1y1x2y2
+        gt_boxes[:, 0:4:2] = np.clip(gt_boxes[:, 0:4:2], 0, self.w - 1)
+        gt_boxes[:, 1:4:2] = np.clip(gt_boxes[:, 1:4:2], 0, self.h - 1)
+        # transform and normalize
+        gt_boxes[:, 0:4:2] = (gt_boxes[:, 0:4:2] * self.ratio + self.pads[0]) / self.width
+        gt_boxes[:, 1:4:2] = (gt_boxes[:, 1:4:2] * self.ratio + self.pads[1]) / self.height
+        assert (gt_boxes < 1).all(), f"gt_boxes: {gt_boxes[gt_boxes >= 1]}"
+
+        return gt_boxes
 
 class LoadImagesAndLabels:  # for training
     def __init__(self, path, img_size=(1088, 608), augment=False, transforms=None):

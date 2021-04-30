@@ -200,7 +200,7 @@ class JDETracker(object):
         self.kalman_filter = KalmanFilter()
 
     def post_process(self, dets, meta):
-        dets = dets.detach().cpu().numpy()
+        dets = dets.detach().cpu().numpy() if dets.dtype is torch.Tensor else dets
         dets = dets.reshape(1, -1, dets.shape[2])
         dets = ctdet_post_process(
             dets.copy(), [meta['c']], [meta['s']],
@@ -245,23 +245,44 @@ class JDETracker(object):
         ''' Step 1: Network forward, get detections & embeddings'''
         with torch.no_grad():
             output = self.model(im_blob)[-1]
-            hm = output['hm'].sigmoid_()
-            wh = output['wh']
             id_feature = output['id']
             id_feature = F.normalize(id_feature, dim=1)
 
-            reg = output['reg'] if self.opt.reg_offset else None
-            dets, inds = mot_decode(hm, wh, reg=reg, ltrb=self.opt.ltrb, K=self.opt.K)
-            id_feature = _tranpose_and_gather_feat(id_feature, inds)
-            id_feature = id_feature.squeeze(0)
-            id_feature = id_feature.cpu().numpy()
+            if self.opt.use_gt_box:
+                dets = self.gt_boxes  # normalized boxes, fmt: x1y1x2y2
+                if len(dets) > 0:
+                    # scaled boxes in feature space
+                    feat_h, feat_w = id_feature.shape[2:4]
+                    dets[:, 0:4:2] *= feat_w
+                    dets[:, 1:4:2] *= feat_h
+                    ctrs = torch.from_numpy((dets[:, 0:2] + dets[:, 2:4]) / 2).to(id_feature.device).long()
+                    inds = (ctrs[:, 1] * feat_w + ctrs[:, 0]).unsqueeze(0)  # shape: (1, N)
+                    assert (inds < feat_w * feat_h).all()
+                else:
+                    dets = []
+            else:
+                hm = output['hm'].sigmoid_()
+                wh = output['wh']
+                reg = output['reg'] if self.opt.reg_offset else None
+                dets, inds = mot_decode(hm, wh, reg=reg, ltrb=self.opt.ltrb, K=self.opt.K)
 
-        dets = self.post_process(dets, meta)
-        dets = self.merge_outputs([dets])[1]
+            if len(dets) > 0:
+                id_feature = _tranpose_and_gather_feat(id_feature, inds)
+                id_feature = id_feature.squeeze(0)
+                id_feature = id_feature.cpu().numpy()
 
-        remain_inds = dets[:, 4] > self.opt.conf_thres
-        dets = dets[remain_inds]
-        id_feature = id_feature[remain_inds]
+        if self.opt.use_gt_box and len(dets) > 0:
+            scores = np.ones_like(dets[:, 0:1], dtype=np.float32)
+            clses = np.zeros_like(dets[:, 0:1], dtype=np.float32)
+            dets = np.concatenate([dets, scores, clses], axis=1)[None]  # shape: (1, N, 6)
+
+        if len(dets) > 0:
+            dets = self.post_process(dets, meta)
+            dets = self.merge_outputs([dets])[1]
+
+            remain_inds = dets[:, 4] > self.opt.conf_thres
+            dets = dets[remain_inds]
+            id_feature = id_feature[remain_inds]
 
         # vis
         '''

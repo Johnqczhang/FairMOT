@@ -26,13 +26,21 @@ def demo(opt):
     result_filename = os.path.join(result_root, 'results.txt')
     frame_rate = dataloader.frame_rate
 
+    if opt.use_gt_box:
+        assert dataloader.vn == len(opt.gt_boxes), f"Error: frame_count ({dataloader.vn}) != len(opt.gt_boxes) ({len(opt.gt_boxes)})"
+        dataloader.gt_boxes = opt.gt_boxes
+
     frame_dir = None if opt.output_format == 'text' else osp.join(result_root, 'frame')
     eval_seq(opt, dataloader, 'mot', result_filename,
              save_dir=frame_dir, show_image=False, frame_rate=frame_rate,
              use_cuda=opt.gpus!=[-1])
 
     if opt.output_format == 'video':
-        output_video_path = osp.join(result_root, 'MOT16-03-results.mp4')
+        if opt.use_gt_box:
+            video_name = (opt.input_video.split("/")[-1]).split(".")[0]
+            output_video_path = osp.join(result_root, f'{video_name}_gt.mp4')
+        else:
+            output_video_path = osp.join(result_root, 'MOT16-03-results.mp4')
         cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(osp.join(result_root, 'frame'), output_video_path)
         os.system(cmd_str)
 

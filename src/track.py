@@ -87,6 +87,9 @@ def eval_seq(opt, dataloader, data_type, result_filename, save_dir=None, show_im
             blob = torch.from_numpy(img).cuda().unsqueeze(0)
         else:
             blob = torch.from_numpy(img).unsqueeze(0)
+        if opt.use_gt_box:
+            tracker.gt_boxes = dataloader.get_cur_frame_gt_boxes(frame_id)
+
         online_targets = tracker.update(blob, img0)
         online_tlwhs = []
         online_ids = []

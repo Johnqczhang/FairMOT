@@ -157,6 +157,10 @@ class opts(object):
                              help='category specific bounding box size.')
     self.parser.add_argument('--not_reg_offset', action='store_true',
                              help='not regress local offset.')
+    self.parser.add_argument('--use_gt_box', action='store_true',
+                             help='disable the detection branch.')
+    self.parser.add_argument('--gt_box_file', type=str, default='',
+                             help='ground-truth bbox json file')
 
   def parse(self, args=''):
     if args == '':
@@ -171,6 +175,7 @@ class opts(object):
 
     opt.fix_res = not opt.keep_res
     print('Fix size testing.' if opt.fix_res else 'Keep resolution testing.')
+    opt.not_reg_offset = opt.use_gt_box
     opt.reg_offset = not opt.not_reg_offset
 
     if opt.head_conv == -1: # init default head_conv
@@ -197,6 +202,18 @@ class opts(object):
     opt.save_dir = os.path.join(opt.exp_dir, opt.exp_id)
     opt.debug_dir = os.path.join(opt.save_dir, 'debug')
     print('The output will be saved to ', opt.save_dir)
+    if opt.use_gt_box:
+      assert opt.gt_box_file, "arg: --gt_box_file is empty"
+      gt_box_file = os.path.expanduser(opt.gt_box_file)
+      assert os.path.exists(gt_box_file), f"File: {opt.gt_box_file} not found"
+      import json
+      print(f"Loading ground-truth boxes from {opt.gt_box_file}")
+      with open(gt_box_file, "r") as f:
+        gt_boxes = json.load(f)  # dict, k: video_name (str), v: boxes (list)
+      video_name = (opt.input_video.split("/")[-1]).split(".")[0]
+      gt_boxes = gt_boxes[video_name]  # list(dict)
+      assert all([len(dict_box) == 1 for dict_box in gt_boxes])
+      opt.gt_boxes = [list(d.values())[0] for d in gt_boxes]  # list(list(list))
     
     if opt.resume and opt.load_model == '':
       model_path = opt.save_dir[:-4] if opt.save_dir.endswith('TEST') \
