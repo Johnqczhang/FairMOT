@@ -200,7 +200,7 @@ class JDETracker(object):
         self.kalman_filter = KalmanFilter()
 
     def post_process(self, dets, meta):
-        dets = dets.detach().cpu().numpy() if dets.dtype is torch.Tensor else dets
+        dets = dets.detach().cpu().numpy() if isinstance(dets, torch.Tensor) else dets
         dets = dets.reshape(1, -1, dets.shape[2])
         dets = ctdet_post_process(
             dets.copy(), [meta['c']], [meta['s']],
@@ -248,8 +248,8 @@ class JDETracker(object):
             id_feature = output['id']
             id_feature = F.normalize(id_feature, dim=1)
 
-            if self.opt.use_gt_box:
-                dets = self.gt_boxes  # normalized boxes, fmt: x1y1x2y2
+            if self.opt.box_json:
+                dets = self.boxes  # normalized boxes, fmt: x1y1x2y2
                 if len(dets) > 0:
                     # scaled boxes in feature space
                     feat_h, feat_w = id_feature.shape[2:4]
@@ -271,7 +271,7 @@ class JDETracker(object):
                 id_feature = id_feature.squeeze(0)
                 id_feature = id_feature.cpu().numpy()
 
-        if self.opt.use_gt_box and len(dets) > 0:
+        if self.opt.box_json and len(dets) > 0:
             scores = np.ones_like(dets[:, 0:1], dtype=np.float32)
             clses = np.zeros_like(dets[:, 0:1], dtype=np.float32)
             dets = np.concatenate([dets, scores, clses], axis=1)[None]  # shape: (1, N, 6)

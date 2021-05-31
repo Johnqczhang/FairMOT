@@ -73,13 +73,16 @@ def eval_seq(opt, dataloader, data_type, result_filename, save_dir=None, show_im
     tracker = JDETracker(opt, frame_rate=frame_rate)
     timer = Timer()
     results = []
-    frame_id = 0
+    save_img_id = 0
     #for path, img, img0 in dataloader:
-    for i, (path, img, img0) in enumerate(dataloader):
-        #if i % 8 != 0:
-            #continue
+    for frame_id, (path, img, img0) in enumerate(dataloader):
+        if frame_id % opt.sample_rate != 0:
+            # cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), img0)
+            continue
         if frame_id % 20 == 0:
             logger.info('Processing frame {} ({:.2f} fps)'.format(frame_id, 1. / max(1e-5, timer.average_time)))
+        if img is None:
+            continue
 
         # run tracking
         timer.tic()
@@ -87,8 +90,11 @@ def eval_seq(opt, dataloader, data_type, result_filename, save_dir=None, show_im
             blob = torch.from_numpy(img).cuda().unsqueeze(0)
         else:
             blob = torch.from_numpy(img).unsqueeze(0)
-        if opt.use_gt_box:
-            tracker.gt_boxes = dataloader.get_cur_frame_gt_boxes(frame_id)
+        if opt.box_json:
+            boxes = dataloader.get_cur_frame_boxes(frame_id)
+            if len(boxes) == 0:
+                continue
+            tracker.boxes = dataloader.get_norm_boxes(boxes)
 
         online_targets = tracker.update(blob, img0)
         online_tlwhs = []
@@ -106,18 +112,39 @@ def eval_seq(opt, dataloader, data_type, result_filename, save_dir=None, show_im
         # save results
         results.append((frame_id + 1, online_tlwhs, online_ids))
         #results.append((frame_id + 1, online_tlwhs, online_ids, online_scores))
+        if opt.do_mosaic:
+            img0 = draw_mosaic(img0, boxes)
         if show_image or save_dir is not None:
             online_im = vis.plot_tracking(img0, online_tlwhs, online_ids, frame_id=frame_id,
                                           fps=1. / timer.average_time)
+
         if show_image:
             cv2.imshow('online_im', online_im)
         if save_dir is not None:
-            cv2.imwrite(os.path.join(save_dir, '{:05d}.jpg'.format(frame_id)), online_im)
-        frame_id += 1
+            cv2.imwrite(os.path.join(save_dir, f'{save_img_id:05d}.jpg'), online_im)
+            save_img_id += 1
     # save results
     write_results(result_filename, results, data_type)
     #write_results_score(result_filename, results, data_type)
     return frame_id, timer.average_time, timer.calls
+
+
+def draw_mosaic(img, boxes):
+    s = 8
+    img_h, img_w = img.shape[:2]
+    for box in boxes:
+        x, y, w, h = box.astype(np.int32)
+        x = np.arange(0, w, s) + x
+        y = np.arange(0, h, s) + y
+        x, y = np.meshgrid(x, y)
+        x = x.reshape(-1)
+        y = y.reshape(-1)
+        xx = np.clip(x + s, 0, img_w)
+        yy = np.clip(y + s, 0, img_h)
+        for x1, y1, x2, y2 in zip(x, y, xx, yy):
+            img[y1:y2, x1:x2] = img[y1, x1]
+
+    return img
 
 
 def main(opt, data_root='/data/MOT16/train', det_root=None, seqs=('MOT16-05',), exp_name='demo',

@@ -26,9 +26,9 @@ def demo(opt):
     result_filename = os.path.join(result_root, 'results.txt')
     frame_rate = dataloader.frame_rate
 
-    if opt.use_gt_box:
-        assert dataloader.vn == len(opt.gt_boxes), f"Error: frame_count ({dataloader.vn}) != len(opt.gt_boxes) ({len(opt.gt_boxes)})"
-        dataloader.gt_boxes = opt.gt_boxes
+    if opt.box_json:
+        assert dataloader.vn == len(opt.boxes), f"Error: frame_count ({dataloader.vn}) != len(opt.boxes) ({len(opt.boxes)})"
+        dataloader.boxes = opt.boxes
 
     frame_dir = None if opt.output_format == 'text' else osp.join(result_root, 'frame')
     eval_seq(opt, dataloader, 'mot', result_filename,
@@ -36,12 +36,14 @@ def demo(opt):
              use_cuda=opt.gpus!=[-1])
 
     if opt.output_format == 'video':
-        if opt.use_gt_box:
+        if opt.box_json:
             video_name = (opt.input_video.split("/")[-1]).split(".")[0]
-            output_video_path = osp.join(result_root, f'{video_name}_gt.mp4')
+            det_name = (opt.box_json.split("/")[-1]).split(".")[0]
+            output_video_path = osp.join(result_root, f'{video_name}_{det_name}.mp4')
         else:
             output_video_path = osp.join(result_root, 'MOT16-03-results.mp4')
-        cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(osp.join(result_root, 'frame'), output_video_path)
+        fps = frame_rate if opt.sample_rate == 1 else frame_rate // opt.sample_rate
+        cmd_str = f"ffmpeg -threads 2 -y -f image2 -r {fps} -i {osp.join(result_root, 'frame')}/%05d.jpg -b:v 5000k -c:v mpeg4 {output_video_path}"
         os.system(cmd_str)
 
 
