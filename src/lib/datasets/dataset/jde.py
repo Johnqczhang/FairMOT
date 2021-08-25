@@ -117,7 +117,7 @@ class LoadVideo:  # for inference
             print(f"Failed to load frame {self.count}, return empty")
             return self.count, None, None
         # assert img0 is not None, 'Failed to load frame {:d}'.format(self.count)
-        assert img0.shape[0] == self.h and img0.shape[1] == self.w, "not 1080p frame"
+        # assert img0.shape[0] == self.h and img0.shape[1] == self.w, "not 1080p frame"
         img0 = cv2.resize(img0, (self.w, self.h))
 
         # Padded resize
