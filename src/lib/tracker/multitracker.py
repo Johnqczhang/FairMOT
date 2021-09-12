@@ -1,12 +1,8 @@
 import numpy as np
 from numba import jit
 from collections import deque
-import itertools
-import os
-import os.path as osp
-import time
 import torch
-import cv2
+# import cv2
 import torch.nn.functional as F
 
 from models.model import create_model, load_model
@@ -18,7 +14,6 @@ from models import *
 from tracker import matching
 from .basetrack import BaseTrack, TrackState
 from utils.post_process import ctdet_post_process
-from utils.image import get_affine_transform
 from models.utils import _tranpose_and_gather_feat
 
 
