@@ -1,20 +1,19 @@
 import numpy as np
-from numba import jit
 from collections import deque
 import torch
 # import cv2
 import torch.nn.functional as F
-
-from models.model import create_model, load_model
-from models.decode import mot_decode
-from tracking_utils.utils import *
-from tracking_utils.log import logger
-from tracking_utils.kalman_filter import KalmanFilter
 from models import *
-from tracker import matching
-from .basetrack import BaseTrack, TrackState
-from utils.post_process import ctdet_post_process
+from models.decode import mot_decode
+from models.model import create_model, load_model
 from models.utils import _tranpose_and_gather_feat
+from tracking_utils.kalman_filter import KalmanFilter
+from tracking_utils.log import logger
+from tracking_utils.utils import *
+from tracker import matching
+from utils.post_process import ctdet_post_process
+
+from .basetrack import BaseTrack, TrackState
 
 
 class STrack(BaseTrack):
@@ -112,7 +111,6 @@ class STrack(BaseTrack):
             self.update_features(new_track.curr_feat)
 
     @property
-    # @jit(nopython=True)
     def tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
                 width, height)`.
@@ -125,7 +123,6 @@ class STrack(BaseTrack):
         return ret
 
     @property
-    # @jit(nopython=True)
     def tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
         `(top left, bottom right)`.
@@ -135,7 +132,6 @@ class STrack(BaseTrack):
         return ret
 
     @staticmethod
-    # @jit(nopython=True)
     def tlwh_to_xyah(tlwh):
         """Convert bounding box to format `(center x, center y, aspect ratio,
         height)`, where the aspect ratio is `width / height`.
@@ -149,14 +145,12 @@ class STrack(BaseTrack):
         return self.tlwh_to_xyah(self.tlwh)
 
     @staticmethod
-    # @jit(nopython=True)
     def tlbr_to_tlwh(tlbr):
         ret = np.asarray(tlbr).copy()
         ret[2:] -= ret[:2]
         return ret
 
     @staticmethod
-    # @jit(nopython=True)
     def tlwh_to_tlbr(tlwh):
         ret = np.asarray(tlwh).copy()
         ret[2:] += ret[:2]
